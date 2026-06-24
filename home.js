@@ -53,7 +53,7 @@ async function initUser(){
 
  if(!snap.exists()){
   await setDoc(ref,{
-   balance:10000,
+   balance: 0,
    portfolio:{}
   });
  }
@@ -76,24 +76,21 @@ async function loadUser(){
  portfolioBox.innerHTML=html||"No stocks";
 }
 
-
-// BUY WITH QUANTITY
-
 window.buyStock=async(name,id)=>{
 
  const stock=(await getDoc(doc(db,"stocks",id))).data();
  const user=(await getDoc(doc(db,"users",userId))).data();
 
- let amount=Number(prompt("How many stocks?",1));
+ let amount=Number(prompt("Valitse osakkeiden määrä?",1));
 
  if(!amount||amount<=0)
   return;
 
  if(user.balance<stock.price*amount)
-  return alert("Not enough money");
+  return alert("Ei riittävästi rahaa!");
 
  if(stock.amount<amount)
-  return alert("Not enough stock available");
+  return alert("Ei tarpeeksi osakkeita jäljellä!");
 
 
  await addDoc(collection(db,"requests"),{
@@ -107,29 +104,23 @@ window.buyStock=async(name,id)=>{
   time:Date.now()
  });
 
- alert("Buy request sent to Roni");
+ alert("Tapahtuma pyyntö lähetty, odota hyväksyntää.");
 }
-
-
-// SELL WITH QUANTITY
 
 window.sellStock=async(name)=>{
 
  const user=(await getDoc(doc(db,"users",userId))).data();
 
  if(!user.portfolio[name])
-  return alert("You don't own this");
+  return alert("Et omista tätä osaketta!");
 
-
- let amount=Number(prompt("How many stocks?",1));
+ let amount=Number(prompt("Valitse osakkeiden määrä?",1));
 
  if(!amount||amount<=0)
   return;
 
-
  if(user.portfolio[name]<amount)
-  return alert("You don't have enough");
-
+  return alert("Sinulla ei ole tarpeeksi");
 
  const stocks=await getDocs(collection(db,"stocks"));
 
@@ -143,7 +134,6 @@ window.sellStock=async(name)=>{
   }
  });
 
-
  await addDoc(collection(db,"requests"),{
   user:userId,
   type:"sell",
@@ -155,11 +145,8 @@ window.sellStock=async(name)=>{
   time:Date.now()
  });
 
- alert("Sell request sent to Roni");
+ alert("Pyyntö lähetetty, odota hyväksyntää.");
 }
-
-
-// ACCEPT REQUEST
 
 async function acceptRequest(id,r){
 
@@ -181,57 +168,47 @@ async function acceptRequest(id,r){
   if(stock.amount<r.amount)
    return;
 
-
   portfolio[r.stock]=(portfolio[r.stock]||0)+r.amount;
-
 
   await updateDoc(userRef,{
    balance:user.balance-total,
    portfolio
   });
 
-
   await updateDoc(stockRef,{
    amount:stock.amount-r.amount
   });
  }
-
 
  if(r.type==="sell"){
 
   if(!portfolio[r.stock]||portfolio[r.stock]<r.amount)
    return;
 
-
   let total=stock.price*r.amount;
-
 
   portfolio[r.stock]-=r.amount;
 
-
   if(portfolio[r.stock]<=0)
    delete portfolio[r.stock];
-
 
   await updateDoc(userRef,{
    balance:user.balance+total,
    portfolio
   });
 
-
   await updateDoc(stockRef,{
    amount:stock.amount+r.amount
   });
  }
 
-
  await updateDoc(doc(db,"requests",id),{
   status:"accepted"
  });
 
-
  loadUser();
 }
+
 
 function loadRequests(){
 
@@ -245,12 +222,10 @@ const oldRequests=document.getElementById("requests");
 if(oldRequests)
  oldRequests.remove();
 
-
 const requestBox=document.createElement("div");
 requestBox.id="requests";
 
 adminPanel.appendChild(requestBox);
-
 
 snapshot.forEach(d=>{
 
@@ -258,7 +233,6 @@ const r=d.data();
 
 if(r.status!=="pending")
  return;
-
 
 const box=document.createElement("div");
 
@@ -280,7 +254,7 @@ Price: $${r.price}
 
 const accept=document.createElement("button");
 
-accept.innerText="ACCEPT";
+accept.innerText="Hyväksy";
 
 
 accept.onclick=async()=>{
@@ -293,7 +267,7 @@ await acceptRequest(d.id,r);
 
 const reject=document.createElement("button");
 
-reject.innerText="REJECT";
+reject.innerText="Kiellä";
 
 
 reject.onclick=async()=>{
@@ -309,7 +283,6 @@ box.appendChild(accept);
 box.appendChild(reject);
 
 requestBox.appendChild(box);
-
 
 });
 
@@ -359,33 +332,23 @@ charts[id]=new Chart(canvas,{
 
 }
 
-
-
-// STOCKS
-
 function loadStocks(){
 
 onSnapshot(collection(db,"stocks"),snapshot=>{
-
 
 stockList.innerHTML="";
 
 let tickerText="";
 
-
 snapshot.forEach(d=>{
-
 
 const s=d.data();
 
-
 tickerText+=`📈 ${s.name} $${s.price}   `;
-
 
 const div=document.createElement("div");
 
 div.className="stock";
-
 
 div.innerHTML=`
 
@@ -417,11 +380,7 @@ SELL
 
 `;
 
-
-
 stockList.appendChild(div);
-
-
 
 setTimeout(()=>{
 
@@ -430,20 +389,16 @@ if(s.priceHistory)
 
 },50);
 
-
-
 if(isAdmin){
 
 const edit=document.createElement("button");
 
-edit.innerText="EDIT";
-
+edit.innerText="Muokkaa";
 
 edit.onclick=async()=>{
 
 let p=prompt("Price",s.price);
 let a=prompt("Amount",s.amount);
-
 
 await updateDoc(doc(db,"stocks",d.id),{
  price:Number(p),
@@ -452,12 +407,9 @@ await updateDoc(doc(db,"stocks",d.id),{
 
 };
 
-
-
 const del=document.createElement("button");
 
-del.innerText="DELETE";
-
+del.innerText="Poista";
 
 del.onclick=async()=>{
 
@@ -465,28 +417,19 @@ await deleteDoc(doc(db,"stocks",d.id));
 
 };
 
-
 div.appendChild(edit);
 div.appendChild(del);
 
 }
 
-
 });
-
 
 if(ticker)
  ticker.innerHTML=tickerText;
 
-
 });
 
 }
-
-
-
-
-// ADD STOCK
 
 addStockBtn.onclick=async()=>{
 
@@ -494,12 +437,11 @@ let name=stockName.value;
 
 let price=Number(stockPrice.value);
 
-let amount=Number(prompt("Amount"));
+let amount=Number(prompt("Määrä"));
 
 
 if(!name||!price||!amount)
  return;
-
 
 await setDoc(doc(db,"stocks",name.toLowerCase()),{
 
@@ -515,11 +457,6 @@ stockName.value="";
 stockPrice.value="";
 
 }
-
-
-
-
-// USERS
 
 async function loadUsers(){
 
@@ -552,13 +489,13 @@ ${d.id}
 
 const btn=document.createElement("button");
 
-btn.innerText="EDIT MONEY";
+btn.innerText="Muokkaa kassaa";
 
 
 btn.onclick=async()=>{
 
 let money=prompt(
-"Balance",
+"Kassa",
 u.balance
 );
 
@@ -567,22 +504,14 @@ await updateDoc(doc(db,"users",d.id),{
  balance:Number(money)
 });
 
-
 };
-
 
 div.appendChild(btn);
 
 usersList.appendChild(div);
-
-
 });
 
 }
 
-
-
-
 initUser();
-
 loadStocks();
