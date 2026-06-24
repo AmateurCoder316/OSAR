@@ -1,354 +1,347 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
-  getFirestore,
-  collection,
-  doc,
-  onSnapshot,
-  setDoc,
-  updateDoc,
-  getDoc,
-  deleteDoc,
-  getDocs
+ getFirestore,
+ collection,
+ doc,
+ onSnapshot,
+ setDoc,
+ updateDoc,
+ getDoc,
+ deleteDoc,
+ getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-import {
-  getAuth,
-  onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyAomxby91sI_MRqysoTmeM91ow-KleW0",
-  authDomain: "osar-3488c.firebaseapp.com",
-  projectId: "osar-3488c",
-  storageBucket: "osar-3488c.appspot.com",
-  messagingSenderId: "700544156659",
-  appId: "1:700544156659:web:94f113ed4d82c5380dc886"
+const firebaseConfig={
+ apiKey:"AIzaSyAomxby81t2sI_MRqysoTmeM91ow-KleW0",
+ authDomain:"osar-3488c.firebaseapp.com",
+ projectId:"osar-3488c",
+ storageBucket:"osar-3488c.appspot.com",
+ messagingSenderId:"700544156659",
+ appId:"1:700544156659:web:94f113ed4d82c5380dc886"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
+const app=initializeApp(firebaseConfig);
+const db=getFirestore(app);
 
-/* ---------------- UI ELEMENTS ---------------- */
+const stockList=document.getElementById("stockList");
+const ticker=document.querySelector(".ticker-track");
+const balanceBox=document.getElementById("balanceBox");
+const portfolioBox=document.getElementById("portfolio");
 
-const stockList = document.getElementById("stockList");
-const ticker = document.querySelector(".ticker-track");
-const balanceBox = document.getElementById("balanceBox");
-const portfolioBox = document.getElementById("portfolio");
+const adminPanel=document.getElementById("adminPanel");
+const usersPanel=document.getElementById("usersPanel");
+const usersList=document.getElementById("usersList");
 
-const adminPanel = document.getElementById("adminPanel");
-const usersPanel = document.getElementById("usersPanel");
-const usersList = document.getElementById("usersList");
+const stockName=document.getElementById("stockName");
+const stockPrice=document.getElementById("stockPrice");
+const addStockBtn=document.getElementById("addStock");
 
-const stockName = document.getElementById("stockName");
-const stockPrice = document.getElementById("stockPrice");
-const addStockBtn = document.getElementById("addStock");
+const userId=localStorage.getItem("user")||"guest";
+const isAdmin=userId==="Roni";
 
-/* ---------------- STATE ---------------- */
+if(isAdmin){
+ adminPanel.classList.remove("hidden");
+ usersPanel.classList.remove("hidden");
+ loadUsers();
+}
 
-let currentUser = null;
-let isAdmin = false;
+async function initUser(){
+ const ref=doc(db,"users",userId);
+ const snap=await getDoc(ref);
 
-/* ---------------- USER INIT ---------------- */
+ if(!snap.exists()){
+  await setDoc(ref,{
+   balance:10000,
+   portfolio:{}
+  });
+ }
 
-async function initUser(uid) {
-  const ref = doc(db, "users", uid);
-  const snap = await getDoc(ref);
+ loadUser();
+}
 
-  if (!snap.exists()) {
-    await setDoc(ref, {
-      balance: 10000,
-      portfolio: {},
-      role: "user"
-    });
+async function loadUser(){
+ const snap=await getDoc(doc(db,"users",userId));
+ const user=snap.data();
+
+ balanceBox.innerHTML=`💰 $${user.balance}`;
+
+ let html="";
+
+ for(let stock in user.portfolio){
+  html+=`
+   <div>${stock}: ${user.portfolio[stock]}</div>
+  `;
+ }
+
+ portfolioBox.innerHTML=html||"No stocks";
+}
+
+async function addHistory(ref,stock,newPrice){
+ let history=stock.priceHistory||[];
+
+ history.push(newPrice);
+
+ if(history.length>30)
+  history.shift();
+
+ await updateDoc(ref,{
+  priceHistory:history
+ });
+}
+
+async function changePrice(ref,stock,type){
+ let change=Math.random()*0.05;
+ let price=stock.price;
+
+ if(type==="buy")
+  price*=1+change;
+
+ if(type==="sell")
+  price*=1-change;
+
+ price=Math.max(1,Math.round(price));
+
+ await updateDoc(ref,{price});
+
+ await addHistory(ref,stock,price);
+}
+
+window.buyStock=async(name,id)=>{
+ const userRef=doc(db,"users",userId);
+ const stockRef=doc(db,"stocks",id);
+
+ const user=(await getDoc(userRef)).data();
+ const stock=(await getDoc(stockRef)).data();
+
+ if(user.balance<stock.price)
+  return alert("Not enough money");
+
+ if(stock.amount<=0)
+  return alert("Sold out");
+
+ let portfolio=user.portfolio||{};
+
+ portfolio[name]=(portfolio[name]||0)+1;
+
+ await updateDoc(userRef,{
+  balance:user.balance-stock.price,
+  portfolio
+ });
+
+ await updateDoc(stockRef,{
+  amount:stock.amount-1
+ });
+
+ await changePrice(stockRef,stock,"buy");
+
+ loadUser();
+}
+
+window.sellStock=async(name)=>{
+ const userRef=doc(db,"users",userId);
+ const user=(await getDoc(userRef)).data();
+
+ let portfolio=user.portfolio||{};
+
+ if(!portfolio[name])
+  return alert("You don't own this");
+
+ const stocks=await getDocs(collection(db,"stocks"));
+
+ let id;
+ let stock;
+
+ stocks.forEach(d=>{
+  if(d.data().name===name){
+   id=d.id;
+   stock=d.data();
   }
+ });
 
-  await loadUser(uid);
+ const stockRef=doc(db,"stocks",id);
+
+ portfolio[name]--;
+
+ if(portfolio[name]<=0)
+  delete portfolio[name];
+
+ await updateDoc(userRef,{
+  balance:user.balance+stock.price,
+  portfolio
+ });
+
+ await updateDoc(stockRef,{
+  amount:stock.amount+1
+ });
+
+ await changePrice(stockRef,stock,"sell");
+
+ loadUser();
 }
 
-async function loadUser(uid) {
-  const snap = await getDoc(doc(db, "users", uid));
-  const user = snap.data();
+const charts={};
 
-  balanceBox.innerHTML = `💰 $${user.balance}`;
+function makeChart(id,data){
+ const canvas=document.getElementById(`chart-${id}`);
 
-  let html = "";
-  for (let stock in user.portfolio || {}) {
-    html += `<div>${stock}: ${user.portfolio[stock]}</div>`;
+ if(!canvas) return;
+
+ if(charts[id])
+  charts[id].destroy();
+
+ charts[id]=new Chart(canvas,{
+  type:"line",
+  data:{
+   labels:data.map((_,i)=>i),
+   datasets:[{
+    label:"Price",
+    data,
+    borderColor:"#00ffff",
+    backgroundColor:"rgba(0,255,255,.15)",
+    tension:.35
+   }]
+  },
+  options:{
+   responsive:true,
+   plugins:{
+    legend:{display:false}
+   }
   }
-
-  portfolioBox.innerHTML = html || "No stocks";
+ });
 }
 
-/* ---------------- ADMIN CHECK ---------------- */
+function loadStocks(){
+ onSnapshot(collection(db,"stocks"),snapshot=>{
 
-async function checkAdmin(uid) {
-  const snap = await getDoc(doc(db, "users", uid));
-  return snap.data()?.role === "admin";
-}
+  stockList.innerHTML="";
+  let tickerText="";
 
-/* ---------------- PRICE HISTORY ---------------- */
+  snapshot.forEach(d=>{
 
-async function addHistory(ref, stock, newPrice) {
-  let history = stock.priceHistory || [];
-  history.push(newPrice);
+   const s=d.data();
 
-  if (history.length > 30) history.shift();
+   tickerText+=`📈 ${s.name} $${s.price}   `;
 
-  await updateDoc(ref, { priceHistory: history });
-}
+   const div=document.createElement("div");
+   div.className="stock";
 
-async function changePrice(ref, stock, type) {
-  let change = Math.random() * 0.05;
-  let price = stock.price;
+   div.innerHTML=`
+    <b>${s.name}</b>
+    <br>
+    💵 $${s.price}
+    <br>
+    📦 ${s.amount}
+    <br>
 
-  if (type === "buy") price *= 1 + change;
-  if (type === "sell") price *= 1 - change;
+    <button onclick="buyStock('${s.name}','${d.id}')">
+     BUY
+    </button>
 
-  price = Math.max(1, Math.round(price));
+    <button onclick="sellStock('${s.name}')">
+     SELL
+    </button>
 
-  await updateDoc(ref, { price });
+    <canvas id="chart-${d.id}">
+    </canvas>
+   `;
 
-  await addHistory(ref, stock, price);
-}
+   stockList.appendChild(div);
 
-/* ---------------- TRADING ---------------- */
+   setTimeout(()=>{
+    if(s.priceHistory)
+     makeChart(d.id,s.priceHistory);
+   },50);
 
-window.buyStock = async (name, id) => {
-  const userRef = doc(db, "users", currentUser.uid);
-  const stockRef = doc(db, "stocks", id);
 
-  const user = (await getDoc(userRef)).data();
-  const stock = (await getDoc(stockRef)).data();
+   if(isAdmin){
 
-  if (user.balance < stock.price) return alert("Not enough money");
-  if (stock.amount <= 0) return alert("Sold out");
+    const edit=document.createElement("button");
+    edit.innerText="EDIT";
 
-  let portfolio = user.portfolio || {};
-  portfolio[name] = (portfolio[name] || 0) + 1;
+    edit.onclick=async()=>{
+     let p=prompt("Price",s.price);
+     let a=prompt("Amount",s.amount);
 
-  await updateDoc(userRef, {
-    balance: user.balance - stock.price,
-    portfolio
-  });
-
-  await updateDoc(stockRef, {
-    amount: stock.amount - 1
-  });
-
-  await changePrice(stockRef, stock, "buy");
-  loadUser(currentUser.uid);
-};
-
-window.sellStock = async (name) => {
-  const userRef = doc(db, "users", currentUser.uid);
-  const user = (await getDoc(userRef)).data();
-
-  let portfolio = user.portfolio || {};
-  if (!portfolio[name]) return alert("You don't own this");
-
-  const stocks = await getDocs(collection(db, "stocks"));
-
-  let id, stock;
-
-  stocks.forEach(d => {
-    if (d.data().name === name) {
-      id = d.id;
-      stock = d.data();
-    }
-  });
-
-  const stockRef = doc(db, "stocks", id);
-
-  portfolio[name]--;
-
-  if (portfolio[name] <= 0) delete portfolio[name];
-
-  await updateDoc(userRef, {
-    balance: user.balance + stock.price,
-    portfolio
-  });
-
-  await updateDoc(stockRef, {
-    amount: stock.amount + 1
-  });
-
-  await changePrice(stockRef, stock, "sell");
-  loadUser(currentUser.uid);
-};
-
-/* ---------------- CHARTS ---------------- */
-
-const charts = {};
-
-function makeChart(id, data) {
-  const canvas = document.getElementById(`chart-${id}`);
-  if (!canvas) return;
-
-  if (charts[id]) charts[id].destroy();
-
-  charts[id] = new Chart(canvas, {
-    type: "line",
-    data: {
-      labels: data.map((_, i) => i),
-      datasets: [{
-        label: "Price",
-        data,
-        borderColor: "#00ffff",
-        backgroundColor: "rgba(0,255,255,.15)",
-        tension: 0.35
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { display: false }
-      }
-    }
-  });
-}
-
-/* ---------------- STOCK LOADING ---------------- */
-
-function loadStocks() {
-  onSnapshot(collection(db, "stocks"), snapshot => {
-    stockList.innerHTML = "";
-    let tickerText = "";
-
-    snapshot.forEach(d => {
-      const s = d.data();
-
-      tickerText += `📈 ${s.name} $${s.price}   `;
-
-      const div = document.createElement("div");
-      div.className = "stock";
-
-      div.innerHTML = `
-        <b>${s.name}</b><br>
-        💵 $${s.price}<br>
-        📦 ${s.amount}<br>
-
-        <button onclick="buyStock('${s.name}','${d.id}')">BUY</button>
-        <button onclick="sellStock('${s.name}')">SELL</button>
-
-        <canvas id="chart-${d.id}"></canvas>
-      `;
-
-      stockList.appendChild(div);
-
-      setTimeout(() => {
-        if (s.priceHistory) makeChart(d.id, s.priceHistory);
-      }, 50);
-
-      /* ADMIN ONLY UI */
-      if (isAdmin) {
-        const edit = document.createElement("button");
-        edit.innerText = "EDIT";
-
-        edit.onclick = async () => {
-          let p = prompt("Price", s.price);
-          let a = prompt("Amount", s.amount);
-
-          await updateDoc(doc(db, "stocks", d.id), {
-            price: Number(p),
-            amount: Number(a)
-          });
-        };
-
-        const del = document.createElement("button");
-        del.innerText = "DELETE";
-
-        del.onclick = async () => {
-          await deleteDoc(doc(db, "stocks", d.id));
-        };
-
-        div.appendChild(edit);
-        div.appendChild(del);
-      }
-    });
-
-    if (ticker) ticker.innerHTML = tickerText;
-  });
-}
-
-/* ---------------- ADMIN STOCK ADD ---------------- */
-
-addStockBtn.onclick = async () => {
-  if (!isAdmin) return alert("Not allowed");
-
-  let name = stockName.value;
-  let price = Number(stockPrice.value);
-  let amount = Number(prompt("Amount"));
-
-  if (!name || !price || !amount) return;
-
-  await setDoc(doc(db, "stocks", name.toLowerCase()), {
-    name,
-    price,
-    amount,
-    priceHistory: [price]
-  });
-
-  stockName.value = "";
-  stockPrice.value = "";
-};
-
-/* ---------------- USERS (ADMIN ONLY) ---------------- */
-
-async function loadUsers() {
-  const snap = await getDocs(collection(db, "users"));
-
-  usersList.innerHTML = "";
-
-  snap.forEach(d => {
-    const u = d.data();
-
-    const div = document.createElement("div");
-    div.className = "stock";
-
-    div.innerHTML = `
-      ${d.id}<br>
-      💰 ${u.balance}<br>
-      🧾 role: ${u.role || "user"}
-    `;
-
-    const btn = document.createElement("button");
-    btn.innerText = "EDIT MONEY";
-
-    btn.onclick = async () => {
-      if (!isAdmin) return;
-
-      let money = prompt("Balance", u.balance);
-
-      await updateDoc(doc(db, "users", d.id), {
-        balance: Number(money)
-      });
+     await updateDoc(doc(db,"stocks",d.id),{
+      price:Number(p),
+      amount:Number(a)
+     });
     };
 
-    div.appendChild(btn);
-    usersList.appendChild(div);
+
+    const del=document.createElement("button");
+    del.innerText="DELETE";
+
+    del.onclick=async()=>{
+     await deleteDoc(doc(db,"stocks",d.id));
+    };
+
+    div.appendChild(edit);
+    div.appendChild(del);
+   }
   });
+
+  if(ticker)
+   ticker.innerHTML=tickerText;
+
+ });
 }
 
-/* ---------------- AUTH FLOW ---------------- */
+addStockBtn.onclick=async()=>{
 
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    alert("Not logged in");
-    return;
-  }
+ let name=stockName.value;
+ let price=Number(stockPrice.value);
+ let amount=Number(prompt("Amount"));
 
-  currentUser = user;
+ if(!name||!price||!amount)
+  return;
 
-  await initUser(user.uid);
+ await setDoc(doc(db,"stocks",name.toLowerCase()),{
+  name,
+  price,
+  amount,
+  priceHistory:[price]
+ });
 
-  isAdmin = await checkAdmin(user.uid);
+ stockName.value="";
+ stockPrice.value="";
+}
 
-  if (isAdmin) {
-    adminPanel.classList.remove("hidden");
-    usersPanel.classList.remove("hidden");
-    loadUsers();
-  }
+async function loadUsers(){
 
-  loadStocks();
-});
+ const snap=await getDocs(collection(db,"users"));
+
+ usersList.innerHTML="";
+
+ snap.forEach(d=>{
+
+  const u=d.data();
+
+  const div=document.createElement("div");
+  div.className="stock";
+
+  div.innerHTML=`
+   ${d.id}
+   <br>
+   💰 ${u.balance}
+  `;
+
+  const btn=document.createElement("button");
+  btn.innerText="EDIT MONEY";
+
+  btn.onclick=async()=>{
+   let money=prompt("Balance",u.balance);
+
+   await updateDoc(doc(db,"users",d.id),{
+    balance:Number(money)
+   });
+  };
+
+  div.appendChild(btn);
+  usersList.appendChild(div);
+
+ });
+}
+
+initUser();
+loadStocks();
