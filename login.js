@@ -1,7 +1,8 @@
 const users = [
   { username: "Roni", password: "Roni2012" },
   { username: "Kalevi", password: "K13OSAR?" },
-  { username: "Aleksi", password: "A13OSAR!" }
+  { username: "Aleksi", password: "A13OSAR!" },
+  { username: "Valtio", password: "Valtio1"}
 ];
 
 let username = document.getElementById("username");
