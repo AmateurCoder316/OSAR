@@ -8,7 +8,7 @@ body{
  min-height:100vh;
  color:white;
  background:
- linear-gradient(135deg,#05070f,#101827);
+ linear-gradient(135deg,#05070f,#111827);
 
  padding:20px;
 }
@@ -18,9 +18,6 @@ body{
  margin:auto;
 }
 
-
-/* Header */
-
 h1{
  font-size:38px;
  letter-spacing:1px;
@@ -28,30 +25,80 @@ h1{
 }
 
 
-/* Panels */
+/* panels */
 
 .panel{
  background:rgba(255,255,255,0.07);
-
  border:1px solid rgba(255,255,255,0.12);
-
  border-radius:22px;
-
  padding:22px;
-
  margin-bottom:20px;
-
  backdrop-filter:blur(12px);
 }
 
 
-/* Stocks */
+/* STOCK TICKER */
+
+.ticker{
+ width:100%;
+ overflow:hidden;
+
+ background:#080f1d;
+
+ border:1px solid rgba(0,255,255,.25);
+
+ border-radius:16px;
+
+ padding:14px 0;
+
+ margin-bottom:20px;
+}
+
+
+.ticker-track{
+
+ display:flex;
+
+ gap:60px;
+
+ width:max-content;
+
+ animation:tickerMove 20s linear infinite;
+
+}
+
+
+.ticker span{
+
+ white-space:nowrap;
+
+ font-weight:600;
+
+ color:#dffcff;
+
+}
+
+
+@keyframes tickerMove{
+
+ from{
+  transform:translateX(100vw);
+ }
+
+ to{
+  transform:translateX(-100%);
+ }
+
+}
+
+
+/* stocks */
 
 .stock{
 
- background:rgba(255,255,255,0.06);
+ background:rgba(255,255,255,.06);
 
- border:1px solid rgba(255,255,255,0.1);
+ border:1px solid rgba(255,255,255,.12);
 
  border-radius:18px;
 
@@ -59,13 +106,6 @@ h1{
 
  margin-bottom:15px;
 
- transition:.2s;
-}
-
-
-.stock:hover{
- background:rgba(255,255,255,0.1);
- transform:translateY(-2px);
 }
 
 
@@ -74,7 +114,7 @@ h1{
 }
 
 
-/* Buttons */
+/* BUTTONS */
 
 button{
 
@@ -82,31 +122,58 @@ button{
 
  border-radius:12px;
 
- padding:11px 18px;
+ padding:12px 20px;
 
  margin:5px;
 
  cursor:pointer;
 
- color:white;
+ color:#ffffff;
 
  background:#1677ff;
 
+ font-weight:700;
+
+ font-size:15px;
+
  transition:.2s;
+
 }
 
 
 button:hover{
- background:#2990ff;
+
+ background:#2b8cff;
+
+ transform:translateY(-2px);
+
 }
 
 
 button:active{
+
  transform:scale(.96);
+
 }
 
 
-/* Inputs */
+/* BUY / SELL colors */
+
+button[onclick*="buyStock"]{
+
+ background:#00a86b;
+
+}
+
+
+button[onclick*="sellStock"]{
+
+ background:#e63946;
+
+}
+
+
+/* inputs */
 
 input{
 
@@ -129,7 +196,7 @@ input{
 }
 
 
-/* Charts */
+/* charts */
 
 .chart-box{
 
@@ -144,52 +211,11 @@ input{
 }
 
 
-/* Ticker */
+canvas{
 
-.ticker{
+ width:100%!important;
 
- overflow:hidden;
-
- background:#0b1220;
-
- border-radius:15px;
-
- border:1px solid rgba(255,255,255,.1);
-
- padding:12px;
-
- margin-bottom:20px;
-
-}
-
-
-.ticker-track{
-
- display:flex;
-
- gap:50px;
-
- width:max-content;
-
- animation:tickerMove 20s linear infinite;
-
-}
-
-
-.ticker span{
- white-space:nowrap;
-}
-
-
-@keyframes tickerMove{
-
- from{
-  transform:translateX(100vw);
- }
-
- to{
-  transform:translateX(-100%);
- }
+ max-height:240px;
 
 }
 
@@ -214,18 +240,23 @@ input{
 
 
  .stock{
-  padding:14px;
+  padding:15px;
  }
 
 
- .stock button{
+ button{
+
   width:100%;
-  margin-top:8px;
+
+  margin:6px 0;
+
  }
 
 
- canvas{
-  max-height:220px;
+ .ticker{
+
+  border-radius:12px;
+
  }
 
 }
