@@ -1,5 +1,3 @@
-console.log('Version 0.1')
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
  getFirestore,
@@ -25,7 +23,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// -------------------- USER SETUP --------------------
+// ---------------- USER ----------------
 
 let userId = localStorage.getItem("user");
 
@@ -36,7 +34,7 @@ if (!userId) {
 
 let isAdmin = false;
 
-// -------------------- DOM --------------------
+// ---------------- DOM ----------------
 
 const stockList = document.getElementById("stockList");
 const ticker = document.querySelector(".ticker-track");
@@ -51,7 +49,7 @@ const stockName = document.getElementById("stockName");
 const stockPrice = document.getElementById("stockPrice");
 const addStockBtn = document.getElementById("addStock");
 
-// -------------------- USER INIT --------------------
+// ---------------- USER INIT ----------------
 
 async function initUser() {
  const ref = doc(db, "users", userId);
@@ -66,6 +64,7 @@ async function initUser() {
  }
 
  const userData = (await getDoc(ref)).data();
+
  isAdmin = userData?.role === "admin";
 
  if (isAdmin) {
@@ -77,7 +76,7 @@ async function initUser() {
  loadUser();
 }
 
-// -------------------- USER DATA --------------------
+// ---------------- USER DATA ----------------
 
 async function loadUser() {
  const snap = await getDoc(doc(db, "users", userId));
@@ -94,7 +93,7 @@ async function loadUser() {
  portfolioBox.innerHTML = html || "No stocks";
 }
 
-// -------------------- STOCK PRICE HISTORY --------------------
+// ---------------- HISTORY ----------------
 
 async function addHistory(ref, stock, newPrice) {
  let history = stock.priceHistory || [];
@@ -104,20 +103,15 @@ async function addHistory(ref, stock, newPrice) {
  if (history.length > 30)
   history.shift();
 
- await updateDoc(ref, {
-  priceHistory: history
- });
+ await updateDoc(ref, { priceHistory: history });
 }
 
 async function changePrice(ref, stock, type) {
  let change = Math.random() * 0.05;
  let price = stock.price;
 
- if (type === "buy")
-  price *= 1 + change;
-
- if (type === "sell")
-  price *= 1 - change;
+ if (type === "buy") price *= 1 + change;
+ if (type === "sell") price *= 1 - change;
 
  price = Math.max(1, Math.round(price));
 
@@ -126,7 +120,7 @@ async function changePrice(ref, stock, type) {
  await addHistory(ref, stock, price);
 }
 
-// -------------------- BUY --------------------
+// ---------------- BUY ----------------
 
 window.buyStock = async (name, id) => {
  const userRef = doc(db, "users", userId);
@@ -159,7 +153,7 @@ window.buyStock = async (name, id) => {
  loadUser();
 };
 
-// -------------------- SELL --------------------
+// ---------------- SELL ----------------
 
 window.sellStock = async (name) => {
  const userRef = doc(db, "users", userId);
@@ -203,17 +197,15 @@ window.sellStock = async (name) => {
  loadUser();
 };
 
-// -------------------- CHARTS --------------------
+// ---------------- CHARTS ----------------
 
 const charts = {};
 
 function makeChart(id, data) {
  const canvas = document.getElementById(`chart-${id}`);
-
  if (!canvas) return;
 
- if (charts[id])
-  charts[id].destroy();
+ if (charts[id]) charts[id].destroy();
 
  charts[id] = new Chart(canvas, {
   type: "line",
@@ -229,14 +221,12 @@ function makeChart(id, data) {
   },
   options: {
    responsive: true,
-   plugins: {
-    legend: { display: false }
-   }
+   plugins: { legend: { display: false } }
   }
  });
 }
 
-// -------------------- STOCKS --------------------
+// ---------------- STOCKS ----------------
 
 function loadStocks() {
  onSnapshot(collection(db, "stocks"), snapshot => {
@@ -267,13 +257,11 @@ function loadStocks() {
    stockList.appendChild(div);
 
    setTimeout(() => {
-    if (s.priceHistory)
-     makeChart(d.id, s.priceHistory);
+    if (s.priceHistory) makeChart(d.id, s.priceHistory);
    }, 50);
 
-   // ADMIN CONTROLS (SAFE NOW)
+   // ADMIN BUTTONS
    if (isAdmin) {
-
     const edit = document.createElement("button");
     edit.innerText = "EDIT";
 
@@ -301,11 +289,10 @@ function loadStocks() {
 
   if (ticker)
    ticker.innerHTML = tickerText;
-
  });
 }
 
-// -------------------- ADD STOCK --------------------
+// ---------------- ADD STOCK ----------------
 
 addStockBtn.onclick = async () => {
 
@@ -327,16 +314,14 @@ addStockBtn.onclick = async () => {
  stockPrice.value = "";
 };
 
-// -------------------- USERS (ADMIN ONLY) --------------------
+// ---------------- USERS ----------------
 
 async function loadUsers() {
-
  const snap = await getDocs(collection(db, "users"));
 
  usersList.innerHTML = "";
 
  snap.forEach(d => {
-
   const u = d.data();
 
   const div = document.createElement("div");
@@ -360,11 +345,11 @@ async function loadUsers() {
 
   div.appendChild(btn);
   usersList.appendChild(div);
-
  });
 }
 
-// -------------------- START --------------------
+// ---------------- START ----------------
 
-initUser();
-loadStocks();
+initUser().then(() => {
+ loadStocks();
+});
