@@ -1,309 +1,231 @@
-* {
-
-box-sizing:border-box;
-
-font-family:"Segoe UI",Arial,sans-serif;
-
+*{
+ box-sizing:border-box;
+ font-family:"Segoe UI",Arial,sans-serif;
 }
-
-
-body {
-
-margin:0;
-
-min-height:100vh;
-
-color:white;
-
-
-background:
-radial-gradient(circle at top,#003b4d,#02020b 70%);
-
-padding:20px;
-
-}
-
-
-/* same glow */
-
-body::before {
-
-content:"";
-
-position:fixed;
-
-width:400px;
-height:400px;
-
-background:#00ffff;
-
-filter:blur(150px);
-
-opacity:.25;
-
-top:-150px;
-right:-100px;
-
-z-index:-1;
-
-}
-
-
-
-.container {
-
-max-width:1000px;
-
-margin:auto;
-
-}
-
-
-
-h1 {
-
-font-size:42px;
-
-text-shadow:
-0 0 25px #00ffff;
-
-}
-
-
-
-.panel {
-
-
-background:
-rgba(255,255,255,.08);
-
-
-backdrop-filter:
-blur(25px);
-
-
-border:
-
-1px solid rgba(255,255,255,.15);
-
-
-border-radius:25px;
-
-
-padding:25px;
-
-
-margin-bottom:25px;
-
-
-box-shadow:
-0 0 30px rgba(0,255,255,.15);
-
-}
-
-
-
-.stock {
-
-
-background:
-rgba(0,0,0,.35);
-
-
-border-radius:22px;
-
-
-padding:20px;
-
-
-margin-bottom:18px;
-
-
-border:
-
-1px solid rgba(0,255,255,.15);
-
-
-transition:.2s;
-
-
-}
-
-
-.stock:hover {
-
-transform:translateY(-3px);
-
-box-shadow:
-0 0 25px rgba(0,255,255,.25);
-
-}
-
-
-
-.stock b {
-
-font-size:24px;
-
-}
-
-
-
-button {
-
-
-border:none;
-
-
-border-radius:14px;
-
-
-padding:12px 20px;
-
-
-margin:6px;
-
-
-cursor:pointer;
-
-
-font-weight:bold;
-
-
-background:
-linear-gradient(90deg,#00ffff,#009dff);
-
-
-box-shadow:
-0 0 15px rgba(0,255,255,.5);
-
-
-}
-
-
-
-button:hover {
-
-transform:scale(1.05);
-
-}
-
-
-
-input {
-
-width:100%;
-
-padding:14px;
-
-
-border:none;
-
-border-radius:15px;
-
-
-background:
-rgba(0,0,0,.4);
-
-
-color:white;
-
-outline:none;
-
-}
-
-
-
-.chart-box {
-
-margin-top:15px;
-
-
-padding:15px;
-
-
-border-radius:20px;
-
-
-background:
-rgba(0,0,0,.35);
-
-}
-
-
-
-canvas {
-
-width:100%!important;
-
-height:auto!important;
-
-}
-
-
-
-.hidden {
-
-display:none;
-
-}
-
-
-
-
-/* 📱 MOBILE */
-
-@media(max-width:600px){
-
 
 body{
+ margin:0;
+ min-height:100vh;
+ color:white;
+ background:
+ linear-gradient(135deg,#05070f,#101827);
 
-padding:12px;
-
+ padding:20px;
 }
 
+.container{
+ max-width:1000px;
+ margin:auto;
+}
+
+
+/* Header */
 
 h1{
-
-font-size:30px;
-
+ font-size:38px;
+ letter-spacing:1px;
+ margin-bottom:20px;
 }
 
 
+/* Panels */
 
 .panel{
+ background:rgba(255,255,255,0.07);
 
-padding:18px;
+ border:1px solid rgba(255,255,255,0.12);
 
-border-radius:20px;
+ border-radius:22px;
 
+ padding:22px;
+
+ margin-bottom:20px;
+
+ backdrop-filter:blur(12px);
 }
 
 
+/* Stocks */
 
 .stock{
 
-padding:16px;
+ background:rgba(255,255,255,0.06);
 
+ border:1px solid rgba(255,255,255,0.1);
+
+ border-radius:18px;
+
+ padding:18px;
+
+ margin-bottom:15px;
+
+ transition:.2s;
 }
 
 
-
-.stock button{
-
-width:100%;
-
-margin:5px 0;
-
+.stock:hover{
+ background:rgba(255,255,255,0.1);
+ transform:translateY(-2px);
 }
-
 
 
 .stock b{
+ font-size:22px;
+}
 
-font-size:20px;
+
+/* Buttons */
+
+button{
+
+ border:none;
+
+ border-radius:12px;
+
+ padding:11px 18px;
+
+ margin:5px;
+
+ cursor:pointer;
+
+ color:white;
+
+ background:#1677ff;
+
+ transition:.2s;
+}
+
+
+button:hover{
+ background:#2990ff;
+}
+
+
+button:active{
+ transform:scale(.96);
+}
+
+
+/* Inputs */
+
+input{
+
+ width:100%;
+
+ padding:14px;
+
+ margin:8px 0;
+
+ border-radius:12px;
+
+ border:1px solid rgba(255,255,255,.15);
+
+ outline:none;
+
+ background:#0b1220;
+
+ color:white;
 
 }
 
+
+/* Charts */
+
+.chart-box{
+
+ background:#080d18;
+
+ border-radius:16px;
+
+ padding:12px;
+
+ margin-top:15px;
+
+}
+
+
+/* Ticker */
+
+.ticker{
+
+ overflow:hidden;
+
+ background:#0b1220;
+
+ border-radius:15px;
+
+ border:1px solid rgba(255,255,255,.1);
+
+ padding:12px;
+
+ margin-bottom:20px;
+
+}
+
+
+.ticker-track{
+
+ display:flex;
+
+ gap:50px;
+
+ width:max-content;
+
+ animation:tickerMove 20s linear infinite;
+
+}
+
+
+.ticker span{
+ white-space:nowrap;
+}
+
+
+@keyframes tickerMove{
+
+ from{
+  transform:translateX(100vw);
+ }
+
+ to{
+  transform:translateX(-100%);
+ }
+
+}
+
+
+/* mobile */
+
+@media(max-width:600px){
+
+ body{
+  padding:12px;
+ }
+
+
+ h1{
+  font-size:28px;
+ }
+
+
+ .panel{
+  padding:16px;
+ }
+
+
+ .stock{
+  padding:14px;
+ }
+
+
+ .stock button{
+  width:100%;
+  margin-top:8px;
+ }
+
+
+ canvas{
+  max-height:220px;
+ }
 
 }
