@@ -132,8 +132,6 @@ window.buyStock=async(name,id)=>{
   amount:stock.amount-1
  });
 
- await changePrice(stockRef,stock,"buy");
-
  loadUser();
 }
 
