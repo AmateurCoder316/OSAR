@@ -1,142 +1,114 @@
+* {
+  box-sizing: border-box;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
 body {
+  min-height: 100vh;
   margin: 0;
-  height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
-  font-family: "Segoe UI", sans-serif;
-  overflow: hidden;
-  position: relative;
+
+  background:
+    linear-gradient(
+      rgba(0,0,0,0.45),
+      rgba(0,0,0,0.7)
+    ),
+    url("your-background.jpg");
+
+  background-size: cover;
+  background-position: center;
+
+  color: white;
 }
 
-/* dark overlay so text stays readable */
+
 body::before {
   content: "";
-  position: absolute;
+  position: fixed;
   inset: 0;
-  background: rgba(10, 12, 18, 0.55);
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(8px);
+  z-index: -1;
 }
 
-/* ===== Glass Card ===== */
-.login-container {
-  position: relative;
-  z-index: 1;
 
-  width: 340px;
-  padding: 40px;
+.login-box {
+  width: 90%;
+  max-width: 420px;
 
-  border-radius: 20px;
+  padding: 35px 25px;
 
-  /* liquid glass */
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  border-radius: 25px;
 
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255,255,255,0.12);
+  backdrop-filter: blur(20px);
 
   box-shadow:
-    0 20px 50px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    0 0 40px rgba(0,255,255,0.25);
 
-  color: white;
-
-  display: flex;
-  flex-direction: column;
-
-  /* smooth float */
-  animation: floatCard 6s ease-in-out infinite;
-}
-
-@keyframes floatCard {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-}
-
-/* subtle light reflection layer */
-.login-container::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 20px;
-
-  background: linear-gradient(
-    135deg,
-    rgba(255,255,255,0.25),
-    rgba(255,255,255,0.05),
-    rgba(255,255,255,0.02)
-  );
-
-  pointer-events: none;
-}
-
-/* ===== Title ===== */
-h1 {
   text-align: center;
+}
+
+
+h1 {
   margin-bottom: 25px;
-  font-weight: 600;
-  letter-spacing: 1px;
 }
 
-/* ===== Labels ===== */
-label {
-  font-size: 12px;
-  margin-top: 14px;
-  margin-bottom: 6px;
-  opacity: 0.85;
-}
 
-/* ===== Inputs ===== */
 input {
-  padding: 12px 14px;
-  border-radius: 12px;
+  width: 100%;
+  padding: 15px;
 
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.06);
-
-  color: white;
-  outline: none;
-
-  transition: 0.25s ease;
-}
-
-/* glass glow on focus */
-input:focus {
-  border-color: rgba(255, 255, 255, 0.6);
-  box-shadow: 0 0 15px rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.1);
-}
-
-/* ===== Button ===== */
-button {
-  margin-top: 22px;
-  padding: 12px;
+  margin: 10px 0;
 
   border-radius: 12px;
   border: none;
 
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255,255,255,0.2);
+
   color: white;
 
-  font-weight: 600;
+  outline: none;
+
+  font-size: 16px;
+}
+
+
+button {
+
+  width: 100%;
+
+  padding: 15px;
+
+  margin-top: 15px;
+
+  border-radius: 14px;
+  border: none;
+
   cursor: pointer;
 
-  backdrop-filter: blur(10px);
+  background: #00ffff;
 
-  transition: 0.25s ease;
+  font-size: 17px;
+
+  transition: 0.2s;
 }
 
-/* hover shine */
-button:hover {
-  background: rgba(255, 255, 255, 0.25);
-  transform: scale(1.03);
-  box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+
+button:active {
+  transform: scale(0.96);
 }
 
-/* small text */
-.hint {
-  text-align: center;
-  margin-top: 15px;
-  font-size: 12px;
-  opacity: 0.7;
+
+@media (max-width: 500px) {
+
+  .login-box {
+    padding: 25px 18px;
+  }
+
+  h1 {
+    font-size: 28px;
+  }
+
 }
