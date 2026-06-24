@@ -77,18 +77,24 @@ async function loadUser(){
 }
 
 
-// BUY REQUEST
+// BUY WITH QUANTITY
 
 window.buyStock=async(name,id)=>{
 
  const stock=(await getDoc(doc(db,"stocks",id))).data();
  const user=(await getDoc(doc(db,"users",userId))).data();
 
- if(user.balance<stock.price)
+ let amount=Number(prompt("How many stocks?",1));
+
+ if(!amount||amount<=0)
+  return;
+
+ if(user.balance<stock.price*amount)
   return alert("Not enough money");
 
- if(stock.amount<=0)
-  return alert("Sold out");
+ if(stock.amount<amount)
+  return alert("Not enough stock available");
+
 
  await addDoc(collection(db,"requests"),{
   user:userId,
@@ -96,6 +102,7 @@ window.buyStock=async(name,id)=>{
   stock:name,
   stockId:id,
   price:stock.price,
+  amount,
   status:"pending",
   time:Date.now()
  });
@@ -104,7 +111,7 @@ window.buyStock=async(name,id)=>{
 }
 
 
-// SELL REQUEST
+// SELL WITH QUANTITY
 
 window.sellStock=async(name)=>{
 
@@ -112,6 +119,17 @@ window.sellStock=async(name)=>{
 
  if(!user.portfolio[name])
   return alert("You don't own this");
+
+
+ let amount=Number(prompt("How many stocks?",1));
+
+ if(!amount||amount<=0)
+  return;
+
+
+ if(user.portfolio[name]<amount)
+  return alert("You don't have enough");
+
 
  const stocks=await getDocs(collection(db,"stocks"));
 
@@ -125,12 +143,14 @@ window.sellStock=async(name)=>{
   }
  });
 
+
  await addDoc(collection(db,"requests"),{
   user:userId,
   type:"sell",
   stock:name,
   stockId:id,
   price:stock.price,
+  amount,
   status:"pending",
   time:Date.now()
  });
@@ -139,7 +159,7 @@ window.sellStock=async(name)=>{
 }
 
 
-// ADMIN ACCEPT
+// ACCEPT REQUEST
 
 async function acceptRequest(id,r){
 
@@ -151,42 +171,56 @@ async function acceptRequest(id,r){
 
  let portfolio=user.portfolio||{};
 
-
  if(r.type==="buy"){
 
-  if(user.balance<stock.price||stock.amount<=0)
+  let total=stock.price*r.amount;
+
+  if(user.balance<total)
    return;
 
-  portfolio[r.stock]=(portfolio[r.stock]||0)+1;
+  if(stock.amount<r.amount)
+   return;
+
+
+  portfolio[r.stock]=(portfolio[r.stock]||0)+r.amount;
+
 
   await updateDoc(userRef,{
-   balance:user.balance-stock.price,
+   balance:user.balance-total,
    portfolio
   });
 
+
   await updateDoc(stockRef,{
-   amount:stock.amount-1
+   amount:stock.amount-r.amount
   });
  }
 
 
  if(r.type==="sell"){
 
-  if(!portfolio[r.stock])
+  if(!portfolio[r.stock]||portfolio[r.stock]<r.amount)
    return;
 
-  portfolio[r.stock]--;
+
+  let total=stock.price*r.amount;
+
+
+  portfolio[r.stock]-=r.amount;
+
 
   if(portfolio[r.stock]<=0)
    delete portfolio[r.stock];
 
+
   await updateDoc(userRef,{
-   balance:user.balance+stock.price,
+   balance:user.balance+total,
    portfolio
   });
 
+
   await updateDoc(stockRef,{
-   amount:stock.amount+1
+   amount:stock.amount+r.amount
   });
  }
 
@@ -195,64 +229,94 @@ async function acceptRequest(id,r){
   status:"accepted"
  });
 
+
  loadUser();
 }
 
-
-// REQUEST LIST
-
 function loadRequests(){
 
- onSnapshot(collection(db,"requests"),snapshot=>{
+onSnapshot(collection(db,"requests"),snapshot=>{
 
-  snapshot.forEach(d=>{
+if(!isAdmin)
+ return;
 
-   const r=d.data();
+const oldRequests=document.getElementById("requests");
 
-   if(r.status!=="pending")
-    return;
-
-
-   const box=document.createElement("div");
-   box.className="stock";
-
-   box.innerHTML=`
-   <b>TRADE REQUEST</b>
-   <br>
-   👤 ${r.user}
-   <br>
-   ${r.type.toUpperCase()} ${r.stock}
-   <br>
-   $${r.price}
-   `;
+if(oldRequests)
+ oldRequests.remove();
 
 
-   const accept=document.createElement("button");
-   accept.innerText="ACCEPT";
+const requestBox=document.createElement("div");
+requestBox.id="requests";
 
-   accept.onclick=()=>acceptRequest(d.id,r);
-
-
-   const reject=document.createElement("button");
-   reject.innerText="REJECT";
-
-   reject.onclick=async()=>{
-    await updateDoc(doc(db,"requests",d.id),{
-     status:"rejected"
-    });
-   };
+adminPanel.appendChild(requestBox);
 
 
-   box.appendChild(accept);
-   box.appendChild(reject);
+snapshot.forEach(d=>{
 
-   adminPanel.appendChild(box);
+const r=d.data();
 
-  });
+if(r.status!=="pending")
+ return;
 
- });
+
+const box=document.createElement("div");
+
+box.className="stock";
+
+
+box.innerHTML=`
+<b>TRADE REQUEST</b>
+<br>
+👤 ${r.user}
+<br>
+${r.type.toUpperCase()} ${r.stock}
+<br>
+Amount: ${r.amount}
+<br>
+Price: $${r.price}
+`;
+
+
+const accept=document.createElement("button");
+
+accept.innerText="ACCEPT";
+
+
+accept.onclick=async()=>{
+
+await acceptRequest(d.id,r);
+
+};
+
+
+
+const reject=document.createElement("button");
+
+reject.innerText="REJECT";
+
+
+reject.onclick=async()=>{
+
+await updateDoc(doc(db,"requests",d.id),{
+ status:"rejected"
+});
+
+};
+
+
+box.appendChild(accept);
+box.appendChild(reject);
+
+requestBox.appendChild(box);
+
+
+});
+
+});
 
 }
+
 
 
 // CHARTS
@@ -261,201 +325,264 @@ const charts={};
 
 function makeChart(id,data){
 
- const canvas=document.getElementById(`chart-${id}`);
+const canvas=document.getElementById(`chart-${id}`);
 
- if(!canvas)return;
-
- if(charts[id])
-  charts[id].destroy();
+if(!canvas)
+ return;
 
 
- charts[id]=new Chart(canvas,{
-  type:"line",
-  data:{
-   labels:data.map((_,i)=>i),
-   datasets:[{
-    label:"Price",
-    data,
-    borderColor:"#00ffff",
-    backgroundColor:"rgba(0,255,255,.15)",
-    tension:.35
-   }]
-  },
-  options:{
-   responsive:true,
-   plugins:{
-    legend:{display:false}
+if(charts[id])
+ charts[id].destroy();
+
+
+charts[id]=new Chart(canvas,{
+ type:"line",
+ data:{
+  labels:data.map((_,i)=>i),
+  datasets:[{
+   label:"Price",
+   data,
+   borderColor:"#00ffff",
+   backgroundColor:"rgba(0,255,255,.15)",
+   tension:.35
+  }]
+ },
+ options:{
+  responsive:true,
+  plugins:{
+   legend:{
+    display:false
    }
   }
- });
+ }
+});
+
 }
+
 
 
 // STOCKS
 
 function loadStocks(){
 
- onSnapshot(collection(db,"stocks"),snapshot=>{
-
-  stockList.innerHTML="";
-  let tickerText="";
+onSnapshot(collection(db,"stocks"),snapshot=>{
 
 
-  snapshot.forEach(d=>{
+stockList.innerHTML="";
 
-   const s=d.data();
-
-   tickerText+=`📈 ${s.name} $${s.price}   `;
+let tickerText="";
 
 
-   const div=document.createElement("div");
-   div.className="stock";
+snapshot.forEach(d=>{
 
 
-   div.innerHTML=`
-   <b>${s.name}</b>
-   <br>
-   💵 $${s.price}
-   <br>
-   📦 ${s.amount}
-   <br>
-
-   <button onclick="buyStock('${s.name}','${d.id}')">
-   BUY
-   </button>
-
-   <button onclick="sellStock('${s.name}')">
-   SELL
-   </button>
-
-   <canvas id="chart-${d.id}"></canvas>
-   `;
+const s=d.data();
 
 
-   stockList.appendChild(div);
+tickerText+=`📈 ${s.name} $${s.price}   `;
 
 
-   setTimeout(()=>{
-    if(s.priceHistory)
-     makeChart(d.id,s.priceHistory);
-   },50);
+const div=document.createElement("div");
+
+div.className="stock";
+
+
+div.innerHTML=`
+
+<b>${s.name}</b>
+
+<br>
+
+💵 $${s.price}
+
+<br>
+
+📦 ${s.amount}
+
+<br>
+
+
+<button onclick="buyStock('${s.name}','${d.id}')">
+BUY
+</button>
+
+
+<button onclick="sellStock('${s.name}')">
+SELL
+</button>
+
+
+<canvas id="chart-${d.id}">
+</canvas>
+
+`;
 
 
 
-   if(isAdmin){
-
-    const edit=document.createElement("button");
-    edit.innerText="EDIT";
+stockList.appendChild(div);
 
 
-    edit.onclick=async()=>{
 
-     let p=prompt("Price",s.price);
-     let a=prompt("Amount",s.amount);
+setTimeout(()=>{
 
-     await updateDoc(doc(db,"stocks",d.id),{
-      price:Number(p),
-      amount:Number(a)
-     });
+if(s.priceHistory)
+ makeChart(d.id,s.priceHistory);
 
-    };
+},50);
 
 
-    const del=document.createElement("button");
-    del.innerText="DELETE";
+
+if(isAdmin){
+
+const edit=document.createElement("button");
+
+edit.innerText="EDIT";
 
 
-    del.onclick=async()=>{
-     await deleteDoc(doc(db,"stocks",d.id));
-    };
+edit.onclick=async()=>{
+
+let p=prompt("Price",s.price);
+let a=prompt("Amount",s.amount);
 
 
-    div.appendChild(edit);
-    div.appendChild(del);
+await updateDoc(doc(db,"stocks",d.id),{
+ price:Number(p),
+ amount:Number(a)
+});
 
-   }
-
-  });
+};
 
 
-  if(ticker)
-   ticker.innerHTML=tickerText;
 
- });
+const del=document.createElement("button");
+
+del.innerText="DELETE";
+
+
+del.onclick=async()=>{
+
+await deleteDoc(doc(db,"stocks",d.id));
+
+};
+
+
+div.appendChild(edit);
+div.appendChild(del);
 
 }
+
+
+});
+
+
+if(ticker)
+ ticker.innerHTML=tickerText;
+
+
+});
+
+}
+
+
 
 
 // ADD STOCK
 
 addStockBtn.onclick=async()=>{
 
- let name=stockName.value;
- let price=Number(stockPrice.value);
- let amount=Number(prompt("Amount"));
+let name=stockName.value;
+
+let price=Number(stockPrice.value);
+
+let amount=Number(prompt("Amount"));
 
 
- if(!name||!price||!amount)
-  return;
+if(!name||!price||!amount)
+ return;
 
 
- await setDoc(doc(db,"stocks",name.toLowerCase()),{
-  name,
-  price,
-  amount,
-  priceHistory:[price]
- });
+await setDoc(doc(db,"stocks",name.toLowerCase()),{
 
- stockName.value="";
- stockPrice.value="";
+name,
+price,
+amount,
+priceHistory:[price]
+
+});
+
+
+stockName.value="";
+stockPrice.value="";
+
 }
+
+
 
 
 // USERS
 
 async function loadUsers(){
 
- const snap=await getDocs(collection(db,"users"));
+const snap=await getDocs(collection(db,"users"));
 
- usersList.innerHTML="";
-
-
- snap.forEach(d=>{
-
-  const u=d.data();
-
-  const div=document.createElement("div");
-  div.className="stock";
-
-  div.innerHTML=`
-  ${d.id}
-  <br>
-  💰 ${u.balance}
-  `;
+usersList.innerHTML="";
 
 
-  const btn=document.createElement("button");
-  btn.innerText="EDIT MONEY";
+snap.forEach(d=>{
+
+const u=d.data();
 
 
-  btn.onclick=async()=>{
+const div=document.createElement("div");
 
-   let money=prompt("Balance",u.balance);
-
-   await updateDoc(doc(db,"users",d.id),{
-    balance:Number(money)
-   });
-
-  };
+div.className="stock";
 
 
-  div.appendChild(btn);
-  usersList.appendChild(div);
+div.innerHTML=`
 
- });
+${d.id}
+
+<br>
+
+💰 ${u.balance}
+
+`;
+
+
+
+const btn=document.createElement("button");
+
+btn.innerText="EDIT MONEY";
+
+
+btn.onclick=async()=>{
+
+let money=prompt(
+"Balance",
+u.balance
+);
+
+
+await updateDoc(doc(db,"users",d.id),{
+ balance:Number(money)
+});
+
+
+};
+
+
+div.appendChild(btn);
+
+usersList.appendChild(div);
+
+
+});
 
 }
 
 
+
+
 initUser();
+
 loadStocks();
