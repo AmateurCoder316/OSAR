@@ -1,4 +1,4 @@
-console.log('Version 0.1)
+console.log('Version 0.1')
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
