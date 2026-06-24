@@ -1,358 +1,347 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import {
-  getFirestore,
-  collection,
-  doc,
-  onSnapshot,
-  setDoc,
-  updateDoc,
-  getDoc,
-  deleteDoc,
-  getDocs
+ getFirestore,
+ collection,
+ doc,
+ onSnapshot,
+ setDoc,
+ updateDoc,
+ getDoc,
+ deleteDoc,
+ getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-
-// 🔥 Firebase config
-const firebaseConfig = {
-  apiKey: "AIzaSyAomxby81sI_MRqysoTmeM91ow-KleW0",
-  authDomain: "osar-3488c.firebaseapp.com",
-  projectId: "osar-3488c",
-  storageBucket: "osar-3488c.appspot.com",
-  messagingSenderId: "700544156659",
-  appId: "1:700544156659:web:94f113ed4d82c5380dc886"
+const firebaseConfig={
+ apiKey:"AIzaSyAomxby81t2sI_MRqysoTmeM91ow-KleW0",
+ authDomain:"osar-3488c.firebaseapp.com",
+ projectId:"osar-3488c",
+ storageBucket:"osar-3488c.appspot.com",
+ messagingSenderId:"700544156659",
+ appId:"1:700544156659:web:94f113ed4d82c5380dc886"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const app=initializeApp(firebaseConfig);
+const db=getFirestore(app);
 
+const stockList=document.getElementById("stockList");
+const ticker=document.querySelector(".ticker-track");
+const balanceBox=document.getElementById("balanceBox");
+const portfolioBox=document.getElementById("portfolio");
 
-// 📦 DOM
-const stockList = document.getElementById("stockList");
-const adminPanel = document.getElementById("adminPanel");
-const usersPanel = document.getElementById("usersPanel");
-const usersList = document.getElementById("usersList");
+const adminPanel=document.getElementById("adminPanel");
+const usersPanel=document.getElementById("usersPanel");
+const usersList=document.getElementById("usersList");
 
-const stockName = document.getElementById("stockName");
-const stockPrice = document.getElementById("stockPrice");
-const addStockBtn = document.getElementById("addStock");
+const stockName=document.getElementById("stockName");
+const stockPrice=document.getElementById("stockPrice");
+const addStockBtn=document.getElementById("addStock");
 
-const portfolioBox = document.getElementById("portfolio");
-const balanceBox = document.getElementById("balanceBox");
+const userId=localStorage.getItem("user")||"guest";
+const isAdmin=userId==="Roni";
 
-
-// 👤 USER
-const userId = localStorage.getItem("user") || "guest";
-const isAdmin = userId === "Roni";
-
-if (isAdmin) {
-  adminPanel.classList.remove("hidden");
-  usersPanel.classList.remove("hidden");
-  loadUsers();
+if(isAdmin){
+ adminPanel.classList.remove("hidden");
+ usersPanel.classList.remove("hidden");
+ loadUsers();
 }
 
+async function initUser(){
+ const ref=doc(db,"users",userId);
+ const snap=await getDoc(ref);
 
-// 💰 INIT USER
-async function initUser() {
-  const ref = doc(db, "users", userId);
-  const snap = await getDoc(ref);
+ if(!snap.exists()){
+  await setDoc(ref,{
+   balance:10000,
+   portfolio:{}
+  });
+ }
 
-  if (!snap.exists()) {
-    await setDoc(ref, {
-      balance: 0,
-      portfolio: {}
-    });
+ loadUser();
+}
+
+async function loadUser(){
+ const snap=await getDoc(doc(db,"users",userId));
+ const user=snap.data();
+
+ balanceBox.innerHTML=`💰 $${user.balance}`;
+
+ let html="";
+
+ for(let stock in user.portfolio){
+  html+=`
+   <div>${stock}: ${user.portfolio[stock]}</div>
+  `;
+ }
+
+ portfolioBox.innerHTML=html||"No stocks";
+}
+
+async function addHistory(ref,stock,newPrice){
+ let history=stock.priceHistory||[];
+
+ history.push(newPrice);
+
+ if(history.length>30)
+  history.shift();
+
+ await updateDoc(ref,{
+  priceHistory:history
+ });
+}
+
+async function changePrice(ref,stock,type){
+ let change=Math.random()*0.05;
+ let price=stock.price;
+
+ if(type==="buy")
+  price*=1+change;
+
+ if(type==="sell")
+  price*=1-change;
+
+ price=Math.max(1,Math.round(price));
+
+ await updateDoc(ref,{price});
+
+ await addHistory(ref,stock,price);
+}
+
+window.buyStock=async(name,id)=>{
+ const userRef=doc(db,"users",userId);
+ const stockRef=doc(db,"stocks",id);
+
+ const user=(await getDoc(userRef)).data();
+ const stock=(await getDoc(stockRef)).data();
+
+ if(user.balance<stock.price)
+  return alert("Not enough money");
+
+ if(stock.amount<=0)
+  return alert("Sold out");
+
+ let portfolio=user.portfolio||{};
+
+ portfolio[name]=(portfolio[name]||0)+1;
+
+ await updateDoc(userRef,{
+  balance:user.balance-stock.price,
+  portfolio
+ });
+
+ await updateDoc(stockRef,{
+  amount:stock.amount-1
+ });
+
+ await changePrice(stockRef,stock,"buy");
+
+ loadUser();
+}
+
+window.sellStock=async(name)=>{
+ const userRef=doc(db,"users",userId);
+ const user=(await getDoc(userRef)).data();
+
+ let portfolio=user.portfolio||{};
+
+ if(!portfolio[name])
+  return alert("You don't own this");
+
+ const stocks=await getDocs(collection(db,"stocks"));
+
+ let id;
+ let stock;
+
+ stocks.forEach(d=>{
+  if(d.data().name===name){
+   id=d.id;
+   stock=d.data();
   }
+ });
 
-  loadUser();
+ const stockRef=doc(db,"stocks",id);
+
+ portfolio[name]--;
+
+ if(portfolio[name]<=0)
+  delete portfolio[name];
+
+ await updateDoc(userRef,{
+  balance:user.balance+stock.price,
+  portfolio
+ });
+
+ await updateDoc(stockRef,{
+  amount:stock.amount+1
+ });
+
+ await changePrice(stockRef,stock,"sell");
+
+ loadUser();
 }
 
+const charts={};
 
-// 📊 USER UI
-async function loadUser() {
-  const ref = doc(db, "users", userId);
-  const snap = await getDoc(ref);
-  const data = snap.data();
+function makeChart(id,data){
+ const canvas=document.getElementById(`chart-${id}`);
 
-  balanceBox.innerHTML = `💰 Kassa: $${data.balance}`;
+ if(!canvas) return;
 
-  let html = "";
-  for (let key in data.portfolio) {
-    html += `<div>${key}: ${data.portfolio[key]}</div>`;
+ if(charts[id])
+  charts[id].destroy();
+
+ charts[id]=new Chart(canvas,{
+  type:"line",
+  data:{
+   labels:data.map((_,i)=>i),
+   datasets:[{
+    label:"Price",
+    data,
+    borderColor:"#00ffff",
+    backgroundColor:"rgba(0,255,255,.15)",
+    tension:.35
+   }]
+  },
+  options:{
+   responsive:true,
+   plugins:{
+    legend:{display:false}
+   }
   }
-
-  portfolioBox.innerHTML = html || "Osta ensimmäinen osake valitsemalla osake ja painamalla OSTA!";
+ });
 }
 
+function loadStocks(){
+ onSnapshot(collection(db,"stocks"),snapshot=>{
 
-// 📈 UPDATE PRICE + HISTORY
-function pushHistory(stockRef, stock, newPrice) {
-  const history = stock.priceHistory || [];
-  history.push(newPrice);
+  stockList.innerHTML="";
+  let tickerText="";
 
-  if (history.length > 30) history.shift();
+  snapshot.forEach(d=>{
 
-  updateDoc(stockRef, {
-    priceHistory: history
-  });
-}
+   const s=d.data();
 
+   tickerText+=`📈 ${s.name} $${s.price}   `;
 
-// 📈 PRICE IMPACT
-async function updatePrice(stockRef, stock, type) {
-  let change = Math.random() * 0.05;
+   const div=document.createElement("div");
+   div.className="stock";
 
-  let newPrice =
-    type === "buy"
-      ? stock.price * (1 + change)
-      : stock.price * (1 - change);
+   div.innerHTML=`
+    <b>${s.name}</b>
+    <br>
+    💵 $${s.price}
+    <br>
+    📦 ${s.amount}
+    <br>
 
-  newPrice = Math.max(1, Math.round(newPrice));
+    <button onclick="buyStock('${s.name}','${d.id}')">
+     BUY
+    </button>
 
-  await updateDoc(stockRef, {
-    price: newPrice
-  });
+    <button onclick="sellStock('${s.name}')">
+     SELL
+    </button>
 
-  pushHistory(stockRef, stock, newPrice);
-}
+    <canvas id="chart-${d.id}">
+    </canvas>
+   `;
 
+   stockList.appendChild(div);
 
-// 💰 BUY
-window.buyStock = async (name, price, stockId) => {
-  const userRef = doc(db, "users", userId);
-  const stockRef = doc(db, "stocks", stockId);
+   setTimeout(()=>{
+    if(s.priceHistory)
+     makeChart(d.id,s.priceHistory);
+   },50);
 
-  const userSnap = await getDoc(userRef);
-  const stockSnap = await getDoc(stockRef);
 
-  const user = userSnap.data();
-  const stock = stockSnap.data();
+   if(isAdmin){
 
-  if (user.balance < stock.price) return alert("Ei tarpeeksi rahaa!");
-  if (stock.amount <= 0) return alert("Ei osakkeita jäljellä!");
+    const edit=document.createElement("button");
+    edit.innerText="EDIT";
 
-  const portfolio = user.portfolio || {};
-  portfolio[name] = (portfolio[name] || 0) + 1;
+    edit.onclick=async()=>{
+     let p=prompt("Price",s.price);
+     let a=prompt("Amount",s.amount);
 
-  await updateDoc(userRef, {
-    balance: user.balance - stock.price,
-    portfolio
-  });
-
-  await updateDoc(stockRef, {
-    amount: stock.amount - 1
-  });
-
-  updatePrice(stockRef, stock, "buy");
-  loadUser();
-};
-
-
-// 💸 SELL
-window.sellStock = async (name, price) => {
-  const userRef = doc(db, "users", userId);
-  const userSnap = await getDoc(userRef);
-  const user = userSnap.data();
-
-  const portfolio = user.portfolio || {};
-
-  if (!portfolio[name]) return alert("Et omista tätä osaketta!");
-
-  const snap = await getDocs(collection(db, "stocks"));
-
-  let stockDocId = null;
-  let stockData = null;
-
-  snap.forEach((d) => {
-    if (d.data().name === name) {
-      stockDocId = d.id;
-      stockData = d.data();
-    }
-  });
-
-  const stockRef = doc(db, "stocks", stockDocId);
-
-  portfolio[name] -= 1;
-  if (portfolio[name] <= 0) delete portfolio[name];
-
-  await updateDoc(userRef, {
-    balance: user.balance + stockData.price,
-    portfolio
-  });
-
-  await updateDoc(stockRef, {
-    amount: stockData.amount + 1
-  });
-
-  updatePrice(stockRef, stockData, "sell");
-  loadUser();
-};
-
-
-// 📊 REAL CHARTS (Chart.js)
-const charts = {};
-
-function renderChart(id, history) {
-  const ctx = document.getElementById(`chart-${id}`).getContext("2d");
-
-  if (charts[id]) {
-    charts[id].destroy();
-  }
-
-  charts[id] = new Chart(ctx, {
-    type: "line",
-    data: {
-      labels: history.map((_, i) => i + 1),
-      datasets: [{
-        label: "Price",
-        data: history,
-        borderColor: "#00ffcc",
-        backgroundColor: "rgba(0,255,204,0.1)",
-        tension: 0.3
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { display: false }
-      },
-      scales: {
-        x: { display: false },
-        y: { beginAtZero: false }
-      }
-    }
-  });
-}
-
-
-// 📡 STOCK LIST
-function loadStocks() {
-  const stocksRef = collection(db, "stocks");
-
-  onSnapshot(stocksRef, (snapshot) => {
-    stockList.innerHTML = "";
-
-    snapshot.forEach((docSnap) => {
-      const s = docSnap.data();
-
-      const div = document.createElement("div");
-      div.classList.add("stock");
-
-      div.innerHTML = `
-        <div>
-          <b>${s.name}</b> - $${s.price}
-          <br>
-          📦 ${s.amount}
-        </div>
-
-        <div>
-          <button onclick="buyStock('${s.name}', ${s.price}, '${docSnap.id}')">Buy</button>
-          <button onclick="sellStock('${s.name}', ${s.price})">Sell</button>
-        </div>
-
-        <div class="chart-box">
-          <canvas id="chart-${docSnap.id}"></canvas>
-        </div>
-      `;
-
-      stockList.appendChild(div);
-
-      setTimeout(() => {
-        if (s.priceHistory && s.priceHistory.length > 1) {
-          renderChart(docSnap.id, s.priceHistory);
-        }
-      }, 0);
-
-      // ADMIN
-      if (isAdmin) {
-        const editBtn = document.createElement("button");
-        editBtn.textContent = "Edit";
-
-        editBtn.onclick = async () => {
-          const newPrice = prompt("New price:", s.price);
-          const newAmount = prompt("New amount:", s.amount);
-
-          if (!newPrice || !newAmount) return;
-
-          await updateDoc(doc(db, "stocks", docSnap.id), {
-            price: Number(newPrice),
-            amount: Number(newAmount)
-          });
-        };
-
-        const deleteBtn = document.createElement("button");
-        deleteBtn.textContent = "Delete";
-
-        deleteBtn.onclick = async () => {
-          await deleteDoc(doc(db, "stocks", docSnap.id));
-        };
-
-        div.appendChild(editBtn);
-        div.appendChild(deleteBtn);
-      }
-    });
-  });
-}
-
-
-// ➕ ADD STOCK
-addStockBtn.addEventListener("click", async () => {
-  if (!isAdmin) return;
-
-  const name = stockName.value;
-  const price = Number(stockPrice.value);
-  const amount = Number(prompt("How many shares?"));
-
-  if (!name || !price || !amount) return;
-
-  await setDoc(doc(db, "stocks", name.toLowerCase()), {
-    name,
-    price,
-    amount,
-    priceHistory: [price]
-  });
-
-  stockName.value = "";
-  stockPrice.value = "";
-});
-
-
-// 👥 USERS
-async function loadUsers() {
-  const snap = await getDocs(collection(db, "users"));
-
-  usersList.innerHTML = "";
-
-  snap.forEach((userDoc) => {
-    const user = userDoc.data();
-
-    const div = document.createElement("div");
-    div.classList.add("stock");
-
-    div.innerHTML = `
-      <span>${userDoc.id}</span>
-      <span>💰 $${user.balance}</span>
-    `;
-
-    const btn = document.createElement("button");
-    btn.textContent = "Edit Balance";
-
-    btn.onclick = async () => {
-      const newBalance = prompt("New balance:", user.balance);
-      if (newBalance === null) return;
-
-      await updateDoc(doc(db, "users", userDoc.id), {
-        balance: Number(newBalance)
-      });
-
-      loadUsers();
+     await updateDoc(doc(db,"stocks",d.id),{
+      price:Number(p),
+      amount:Number(a)
+     });
     };
 
-    div.appendChild(btn);
-    usersList.appendChild(div);
+
+    const del=document.createElement("button");
+    del.innerText="DELETE";
+
+    del.onclick=async()=>{
+     await deleteDoc(doc(db,"stocks",d.id));
+    };
+
+    div.appendChild(edit);
+    div.appendChild(del);
+   }
   });
+
+  if(ticker)
+   ticker.innerHTML=tickerText;
+
+ });
 }
 
+addStockBtn.onclick=async()=>{
 
-// 🚀 START
+ let name=stockName.value;
+ let price=Number(stockPrice.value);
+ let amount=Number(prompt("Amount"));
+
+ if(!name||!price||!amount)
+  return;
+
+ await setDoc(doc(db,"stocks",name.toLowerCase()),{
+  name,
+  price,
+  amount,
+  priceHistory:[price]
+ });
+
+ stockName.value="";
+ stockPrice.value="";
+}
+
+async function loadUsers(){
+
+ const snap=await getDocs(collection(db,"users"));
+
+ usersList.innerHTML="";
+
+ snap.forEach(d=>{
+
+  const u=d.data();
+
+  const div=document.createElement("div");
+  div.className="stock";
+
+  div.innerHTML=`
+   ${d.id}
+   <br>
+   💰 ${u.balance}
+  `;
+
+  const btn=document.createElement("button");
+  btn.innerText="EDIT MONEY";
+
+  btn.onclick=async()=>{
+   let money=prompt("Balance",u.balance);
+
+   await updateDoc(doc(db,"users",d.id),{
+    balance:Number(money)
+   });
+  };
+
+  div.appendChild(btn);
+  usersList.appendChild(div);
+
+ });
+}
+
 initUser();
 loadStocks();
