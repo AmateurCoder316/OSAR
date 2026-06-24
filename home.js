@@ -8,7 +8,8 @@ import {
  updateDoc,
  getDoc,
  deleteDoc,
- getDocs
+ getDocs,
+ addDoc
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 const firebaseConfig={
@@ -43,6 +44,7 @@ if(isAdmin){
  adminPanel.classList.remove("hidden");
  usersPanel.classList.remove("hidden");
  loadUsers();
+ loadRequests();
 }
 
 async function initUser(){
@@ -68,50 +70,19 @@ async function loadUser(){
  let html="";
 
  for(let stock in user.portfolio){
-  html+=`
-   <div>${stock}: ${user.portfolio[stock]}</div>
-  `;
+  html+=`<div>${stock}: ${user.portfolio[stock]}</div>`;
  }
 
  portfolioBox.innerHTML=html||"No stocks";
 }
 
-async function addHistory(ref,stock,newPrice){
- let history=stock.priceHistory||[];
 
- history.push(newPrice);
-
- if(history.length>30)
-  history.shift();
-
- await updateDoc(ref,{
-  priceHistory:history
- });
-}
-
-async function changePrice(ref,stock,type){
- let change=Math.random()*0.05;
- let price=stock.price;
-
- if(type==="buy")
-  price*=1+change;
-
- if(type==="sell")
-  price*=1-change;
-
- price=Math.max(1,Math.round(price));
-
- await updateDoc(ref,{price});
-
- await addHistory(ref,stock,price);
-}
+// BUY REQUEST
 
 window.buyStock=async(name,id)=>{
- const userRef=doc(db,"users",userId);
- const stockRef=doc(db,"stocks",id);
 
- const user=(await getDoc(userRef)).data();
- const stock=(await getDoc(stockRef)).data();
+ const stock=(await getDoc(doc(db,"stocks",id))).data();
+ const user=(await getDoc(doc(db,"users",userId))).data();
 
  if(user.balance<stock.price)
   return alert("Not enough money");
@@ -119,29 +90,27 @@ window.buyStock=async(name,id)=>{
  if(stock.amount<=0)
   return alert("Sold out");
 
- let portfolio=user.portfolio||{};
-
- portfolio[name]=(portfolio[name]||0)+1;
-
- await updateDoc(userRef,{
-  balance:user.balance-stock.price,
-  portfolio
+ await addDoc(collection(db,"requests"),{
+  user:userId,
+  type:"buy",
+  stock:name,
+  stockId:id,
+  price:stock.price,
+  status:"pending",
+  time:Date.now()
  });
 
- await updateDoc(stockRef,{
-  amount:stock.amount-1
- });
-
- loadUser();
+ alert("Buy request sent to Roni");
 }
 
+
+// SELL REQUEST
+
 window.sellStock=async(name)=>{
- const userRef=doc(db,"users",userId);
- const user=(await getDoc(userRef)).data();
 
- let portfolio=user.portfolio||{};
+ const user=(await getDoc(doc(db,"users",userId))).data();
 
- if(!portfolio[name])
+ if(!user.portfolio[name])
   return alert("You don't own this");
 
  const stocks=await getDocs(collection(db,"stocks"));
@@ -156,36 +125,149 @@ window.sellStock=async(name)=>{
   }
  });
 
- const stockRef=doc(db,"stocks",id);
-
- portfolio[name]--;
-
- if(portfolio[name]<=0)
-  delete portfolio[name];
-
- await updateDoc(userRef,{
-  balance:user.balance+stock.price,
-  portfolio
+ await addDoc(collection(db,"requests"),{
+  user:userId,
+  type:"sell",
+  stock:name,
+  stockId:id,
+  price:stock.price,
+  status:"pending",
+  time:Date.now()
  });
 
- await updateDoc(stockRef,{
-  amount:stock.amount+1
- });
+ alert("Sell request sent to Roni");
+}
 
- await changePrice(stockRef,stock,"sell");
+
+// ADMIN ACCEPT
+
+async function acceptRequest(id,r){
+
+ const userRef=doc(db,"users",r.user);
+ const stockRef=doc(db,"stocks",r.stockId);
+
+ const user=(await getDoc(userRef)).data();
+ const stock=(await getDoc(stockRef)).data();
+
+ let portfolio=user.portfolio||{};
+
+
+ if(r.type==="buy"){
+
+  if(user.balance<stock.price||stock.amount<=0)
+   return;
+
+  portfolio[r.stock]=(portfolio[r.stock]||0)+1;
+
+  await updateDoc(userRef,{
+   balance:user.balance-stock.price,
+   portfolio
+  });
+
+  await updateDoc(stockRef,{
+   amount:stock.amount-1
+  });
+ }
+
+
+ if(r.type==="sell"){
+
+  if(!portfolio[r.stock])
+   return;
+
+  portfolio[r.stock]--;
+
+  if(portfolio[r.stock]<=0)
+   delete portfolio[r.stock];
+
+  await updateDoc(userRef,{
+   balance:user.balance+stock.price,
+   portfolio
+  });
+
+  await updateDoc(stockRef,{
+   amount:stock.amount+1
+  });
+ }
+
+
+ await updateDoc(doc(db,"requests",id),{
+  status:"accepted"
+ });
 
  loadUser();
 }
 
+
+// REQUEST LIST
+
+function loadRequests(){
+
+ onSnapshot(collection(db,"requests"),snapshot=>{
+
+  snapshot.forEach(d=>{
+
+   const r=d.data();
+
+   if(r.status!=="pending")
+    return;
+
+
+   const box=document.createElement("div");
+   box.className="stock";
+
+   box.innerHTML=`
+   <b>TRADE REQUEST</b>
+   <br>
+   👤 ${r.user}
+   <br>
+   ${r.type.toUpperCase()} ${r.stock}
+   <br>
+   $${r.price}
+   `;
+
+
+   const accept=document.createElement("button");
+   accept.innerText="ACCEPT";
+
+   accept.onclick=()=>acceptRequest(d.id,r);
+
+
+   const reject=document.createElement("button");
+   reject.innerText="REJECT";
+
+   reject.onclick=async()=>{
+    await updateDoc(doc(db,"requests",d.id),{
+     status:"rejected"
+    });
+   };
+
+
+   box.appendChild(accept);
+   box.appendChild(reject);
+
+   adminPanel.appendChild(box);
+
+  });
+
+ });
+
+}
+
+
+// CHARTS
+
 const charts={};
 
 function makeChart(id,data){
+
  const canvas=document.getElementById(`chart-${id}`);
 
- if(!canvas) return;
+ if(!canvas)return;
 
  if(charts[id])
   charts[id].destroy();
+
 
  charts[id]=new Chart(canvas,{
   type:"line",
@@ -208,11 +290,16 @@ function makeChart(id,data){
  });
 }
 
+
+// STOCKS
+
 function loadStocks(){
+
  onSnapshot(collection(db,"stocks"),snapshot=>{
 
   stockList.innerHTML="";
   let tickerText="";
+
 
   snapshot.forEach(d=>{
 
@@ -220,30 +307,33 @@ function loadStocks(){
 
    tickerText+=`📈 ${s.name} $${s.price}   `;
 
+
    const div=document.createElement("div");
    div.className="stock";
 
+
    div.innerHTML=`
-    <b>${s.name}</b>
-    <br>
-    💵 $${s.price}
-    <br>
-    📦 ${s.amount}
-    <br>
+   <b>${s.name}</b>
+   <br>
+   💵 $${s.price}
+   <br>
+   📦 ${s.amount}
+   <br>
 
-    <button onclick="buyStock('${s.name}','${d.id}')">
-     BUY
-    </button>
+   <button onclick="buyStock('${s.name}','${d.id}')">
+   BUY
+   </button>
 
-    <button onclick="sellStock('${s.name}')">
-     SELL
-    </button>
+   <button onclick="sellStock('${s.name}')">
+   SELL
+   </button>
 
-    <canvas id="chart-${d.id}">
-    </canvas>
+   <canvas id="chart-${d.id}"></canvas>
    `;
 
+
    stockList.appendChild(div);
+
 
    setTimeout(()=>{
     if(s.priceHistory)
@@ -251,12 +341,15 @@ function loadStocks(){
    },50);
 
 
+
    if(isAdmin){
 
     const edit=document.createElement("button");
     edit.innerText="EDIT";
 
+
     edit.onclick=async()=>{
+
      let p=prompt("Price",s.price);
      let a=prompt("Amount",s.amount);
 
@@ -264,26 +357,36 @@ function loadStocks(){
       price:Number(p),
       amount:Number(a)
      });
+
     };
 
 
     const del=document.createElement("button");
     del.innerText="DELETE";
 
+
     del.onclick=async()=>{
      await deleteDoc(doc(db,"stocks",d.id));
     };
 
+
     div.appendChild(edit);
     div.appendChild(del);
+
    }
+
   });
+
 
   if(ticker)
    ticker.innerHTML=tickerText;
 
  });
+
 }
+
+
+// ADD STOCK
 
 addStockBtn.onclick=async()=>{
 
@@ -291,8 +394,10 @@ addStockBtn.onclick=async()=>{
  let price=Number(stockPrice.value);
  let amount=Number(prompt("Amount"));
 
+
  if(!name||!price||!amount)
   return;
+
 
  await setDoc(doc(db,"stocks",name.toLowerCase()),{
   name,
@@ -305,11 +410,15 @@ addStockBtn.onclick=async()=>{
  stockPrice.value="";
 }
 
+
+// USERS
+
 async function loadUsers(){
 
  const snap=await getDocs(collection(db,"users"));
 
  usersList.innerHTML="";
+
 
  snap.forEach(d=>{
 
@@ -319,27 +428,34 @@ async function loadUsers(){
   div.className="stock";
 
   div.innerHTML=`
-   ${d.id}
-   <br>
-   💰 ${u.balance}
+  ${d.id}
+  <br>
+  💰 ${u.balance}
   `;
+
 
   const btn=document.createElement("button");
   btn.innerText="EDIT MONEY";
 
+
   btn.onclick=async()=>{
+
    let money=prompt("Balance",u.balance);
 
    await updateDoc(doc(db,"users",d.id),{
     balance:Number(money)
    });
+
   };
+
 
   div.appendChild(btn);
   usersList.appendChild(div);
 
  });
+
 }
+
 
 initUser();
 loadStocks();
