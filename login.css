@@ -71,8 +71,9 @@ h1 {
 
   margin-bottom:25px;
 
-  text-shadow:
-  0 0 20px #00ffff;
+  text-shadow:none;
+
+  letter-spacing:1px;
 
 }
 
