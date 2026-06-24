@@ -260,3 +260,7 @@ canvas{
  }
 
 }
+
+.hidden {
+  display: none;
+}
